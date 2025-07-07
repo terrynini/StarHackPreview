@@ -30,43 +30,41 @@ def get_avatar_url(user_id, avatar_hash):
         return f"https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png"
     else:
         # 如果是預設頭貼 (新版 Discord 用戶沒有 discriminator)
-<<<<<<< HEAD
         # Discord 預設頭貼現在是基於用戶 ID 的 hash，但對於嵌入式頭貼，通常會用一個通用的預設圖
-        # 這裡使用一個通用的預設頭貼，或者可以考慮根據 user_id 的最後一位數字來選擇 0-4 的預設頭貼
         return f"https://cdn.discordapp.com/embed/avatars/0.png" # 預設使用 0 號頭貼
 
-def fetch_initial_post_data(thread_id):
-    """獲取指定論壇貼文的初始貼文內容和作者資訊。"""
+def fetch_initial_post_data(thread_id, guild_id):
+    """獲取指定論壇貼文的初始貼文內容、作者資訊及伺服器暱稱。"""
     # 論壇貼文的 ID 就是其初始貼文的訊息 ID
     message_url = f"https://discord.com/api/v9/channels/{thread_id}/messages/{thread_id}"
-=======
-        return f"https://cdn.discordapp.com/embed/avatars/0.png" # 預設使用 0 號頭貼
-
-def fetch_first_message_data(thread_id):
-    """獲取指定貼文的第一則訊息內容和作者資訊。"""
-    messages_url = f"https://discord.com/api/v9/channels/{thread_id}/messages?limit=1"
->>>>>>> f915d7784d404bd02f6ee8b76f6c4082e084881a
     try:
         msg_response = requests.get(message_url, headers=headers, timeout=5)
         msg_response.raise_for_status()
-<<<<<<< HEAD
         message = msg_response.json() # 這會直接回傳單個訊息物件，而不是列表
         content = message.get('content', '')
         author = message.get('author', {})
-        return content, author
+
+        # --- 獲取伺服器暱稱 ---
+        author_name_to_display = author.get('username', '未知作者') # 預設使用 username
+        if 'id' in author and guild_id: # 確保有用戶 ID 和伺服器 ID
+            member_url = f"https://discord.com/api/v9/guilds/{guild_id}/members/{author['id']}"
+            try:
+                member_response = requests.get(member_url, headers=headers, timeout=5)
+                member_response.raise_for_status()
+                member_data = member_response.json()
+                if 'nick' in member_data and member_data['nick']:
+                    author_name_to_display = member_data['nick']
+                elif 'global_name' in author and author['global_name']:
+                    author_name_to_display = author['global_name']
+            except requests.exceptions.RequestException as e:
+                # 如果獲取成員資訊失敗，可能是 Bot 沒有權限，或者用戶已不在伺服器
+                print(f"警告：獲取用戶 {author.get('id')} 在伺服器 {guild_id} 的成員資訊失敗: {e}")
+            time.sleep(0.1) # 每次獲取成員資訊後稍微延遲
+
+        return content, author, author_name_to_display
     except requests.exceptions.RequestException as e:
         print(f"獲取初始貼文 {thread_id} 的訊息時出錯: {e}")
-=======
-        messages = msg_response.json()
-        if messages:
-            message = messages[0]
-            content = message.get('content', '')
-            author = message.get('author', {})
-            return content, author
-    except requests.exceptions.RequestException as e:
-        print(f"獲取貼文 {thread_id} 的訊息時出錯: {e}")
->>>>>>> f915d7784d404bd02f6ee8b76f6c4082e084881a
-    return None, None # Return None for both if failed
+    return None, None, None # Return None for all if failed
 
 def get_forum_channel_details(channel_id):
     """獲取論壇頻道詳細資訊，包括標籤。"""
@@ -96,13 +94,13 @@ def get_threads(channel_id, thread_type="active", limit=None):
         print(f"獲取 {thread_type} 貼文時發生錯誤: {e}")
         return []
 
-def generate_post_html(title, summary, invite_link, author_name, author_avatar_url, tags_html):
+def generate_post_html(title, summary, invite_link, author_display_name, author_avatar_url, tags_html):
     """生成單個貼文的 HTML 片段。"""
     html_snippet = f"""
     <div class="post-card">
         <div class="post-header">
-            <img src="{author_avatar_url}" alt="{author_name}'s avatar" class="author-avatar">
-            <span class="author-name">{author_name}</span>
+            <img src="{author_avatar_url}" alt="{author_display_name}'s avatar" class="author-avatar">
+            <span class="author-name">{author_display_name}</span>
         </div>
         <h3>{title}</h3>
         <p>{summary}</p>
@@ -137,12 +135,15 @@ def write_html_file(filename, content, page_title):
 forum_details = get_forum_channel_details(CHANNEL_ID)
 ctf_tag_id = None
 tag_map = {}
+forum_guild_id = None
 
-if forum_details and 'available_tags' in forum_details:
-    for tag in forum_details['available_tags']:
-        tag_map[tag['id']] = tag['name']
-        if tag['name'] == CTF_TAG_NAME:
-            ctf_tag_id = tag['id']
+if forum_details:
+    forum_guild_id = forum_details.get('guild_id')
+    if 'available_tags' in forum_details:
+        for tag in forum_details['available_tags']:
+            tag_map[tag['id']] = tag['name']
+            if tag['name'] == CTF_TAG_NAME:
+                ctf_tag_id = tag['id']
 
 if ctf_tag_id is None:
     print(f"警告：找不到名為 '{CTF_TAG_NAME}' 的標籤。CTF 評價頁面將不會生成。")
@@ -177,11 +178,7 @@ for thread in sorted_threads:
 # --- 生成主頁面 (index.html) ---
 html_content_main = ""
 for thread in latest_threads:
-<<<<<<< HEAD
-    content, author_data = fetch_initial_post_data(thread['id'])
-=======
-    content, author_data = fetch_first_message_data(thread['id'])
->>>>>>> f915d7784d404bd02f6ee8b76f6c4082e084881a
+    content, author_data, author_display_name = fetch_initial_post_data(thread['id'], forum_guild_id)
     if content is None and author_data is None: # API 請求失敗
         continue
 
@@ -191,7 +188,6 @@ for thread in latest_threads:
     else:
         summary = "<i>(此貼文無內文)</i>"
     
-    author_name = html.escape(author_data.get('username', '未知作者'))
     author_id = author_data.get('id')
     avatar_hash = author_data.get('avatar')
     author_avatar_url = get_avatar_url(author_id, avatar_hash)
@@ -212,7 +208,7 @@ for thread in latest_threads:
         html.escape(thread['name']),
         summary,
         INVITE_LINK,
-        author_name,
+        author_display_name,
         author_avatar_url,
         thread_tags_html
     )
@@ -228,11 +224,7 @@ print("index.html 已成功根據論壇內容產生！")
 if ctf_tag_id:
     html_content_ctf = ""
     for thread in ctf_threads:
-<<<<<<< HEAD
-        content, author_data = fetch_initial_post_data(thread['id'])
-=======
-        content, author_data = fetch_first_message_data(thread['id'])
->>>>>>> f915d7784d404bd02f6ee8b76f6c4082e084881a
+        content, author_data, author_display_name = fetch_initial_post_data(thread['id'], forum_guild_id)
         if content is None and author_data is None:
             continue
 
@@ -242,7 +234,6 @@ if ctf_tag_id:
         else:
             summary = "<i>(此貼文無內文)</i>"
         
-        author_name = html.escape(author_data.get('username', '未知作者'))
         author_id = author_data.get('id')
         avatar_hash = author_data.get('avatar')
         author_avatar_url = get_avatar_url(author_id, avatar_hash)
@@ -263,7 +254,7 @@ if ctf_tag_id:
             html.escape(thread['name']),
             summary,
             INVITE_LINK,
-            author_name,
+            author_display_name,
             author_avatar_url,
             thread_tags_html
         )
