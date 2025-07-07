@@ -30,6 +30,7 @@ jobs:
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
+          DISCORD_INVITE_LINK: ${{ secrets.DISCORD_INVITE_LINK }}
         run: python fetch_discord.py
       # 步驟 5: 將變更的檔案 (index.html) commit 並 push 回倉庫
       - name: Commit and push if it changed

@@ -3,23 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord 討論紀錄</title>
+    <title>社群討論精華</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-css-theme@1.2.1/css/simple.min.css">
     <style>
         body { container: main / inline-size; }
         main { padding: 1rem; }
-        div { 
+        .post {
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
             background-color: var(--bg-secondary);
-            padding: 1rem;
-            border-radius: 5px;
+        }
+        .post h3 {
+            margin-top: 0;
+        }
+        .post p {
             margin-bottom: 1rem;
         }
-        p { margin-top: 0.5rem; }
+        .post a {
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <header>
-        <h1>Discord 討論紀錄</h1>
+        <h1>社群討論精華</h1>
+        <p>這裡是我們社群最新討論的摘要，完整內容都在 Discord！</p>
     </header>
     <main>
         <!-- DISCORD_MESSAGES -->
