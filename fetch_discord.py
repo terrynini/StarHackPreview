@@ -3,6 +3,8 @@ import requests
 import html
 import time
 import math
+import datetime
+import pytz # 新增：引入 pytz 模組
 
 # 從 GitHub Secrets 讀取環境變數
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -238,7 +240,7 @@ def generate_post_html(title, summary, invite_link, author_display_name, author_
     html_snippet += "</div>\n"
     return html_snippet
 
-def write_html_file(filename, content, page_title, server_name="", server_icon_url=""):
+def write_html_file(filename, content, page_title, server_name="", server_icon_url="", last_updated_time=""):
     """將內容寫入 HTML 檔案。"""
     try:
         with open('template.html', 'r', encoding='utf-8') as f:
@@ -252,6 +254,7 @@ def write_html_file(filename, content, page_title, server_name="", server_icon_u
     final_html = final_html.replace('<!-- DISCORD_MESSAGES -->', content)
     final_html = final_html.replace('<!-- SERVER_NAME -->', html.escape(server_name))
     final_html = final_html.replace('<!-- SERVER_ICON_URL -->', server_icon_url)
+    final_html = final_html.replace('<!-- LAST_UPDATED_TIME -->', last_updated_time) # 新增：替換更新時間
 
     with open(filename, 'w', encoding='utf-8') as f:
         f.write(final_html)
@@ -302,6 +305,12 @@ sorted_threads = sorted(all_unique_threads.values(), key=lambda x: int(x['id']),
 # 5. 篩選出最新的貼文和 CTF 貼文
 latest_threads = sorted_threads[:MAX_POSTS_TO_FETCH] # 主頁面仍有限制
 ctf_threads = [t for t in sorted_threads if ctf_tag_id and 'applied_tags' in t and ctf_tag_id in t['applied_tags']]
+
+# 獲取當前更新時間 (台灣時區)
+tz_taiwan = pytz.timezone('Asia/Taipei') # 定義台灣時區
+current_utc_time = datetime.datetime.utcnow() # 獲取當前 UTC 時間
+current_taiwan_time = current_utc_time.replace(tzinfo=pytz.utc).astimezone(tz_taiwan) # 轉換為台灣時區
+formatted_time = current_taiwan_time.strftime('%Y-%m-%d %H:%M %Z%z') # 格式化時間字串，包含時區縮寫和偏移量
 
 # --- 生成主頁面 (index.html) ---
 html_content_main = ""
@@ -356,7 +365,7 @@ if len(sorted_threads) > MAX_POSTS_TO_FETCH:
 elif not html_content_main:
     html_content_main = "<p>目前還沒有任何討論，快來發表第一篇吧！</p>"
 
-write_html_file('index.html', html_content_main, "社群討論精華", server_name, server_icon_url)
+write_html_file('index.html', html_content_main, "社群討論精華", server_name, server_icon_url, formatted_time)
 print("index.html 已成功根據論壇內容產生！")
 
 # --- 生成 CTF 評價頁面 (ctf_reviews.html) ---
@@ -427,7 +436,7 @@ if ctf_tag_id:
     if not html_content_ctf:
         html_content_ctf = "<p>目前還沒有任何 CTF 評價貼文。</p>"
 
-    write_html_file('ctf_reviews.html', html_content_ctf, "CTF 評價", server_name, server_icon_url)
+    write_html_file('ctf_reviews.html', html_content_ctf, "CTF 評價", server_name, server_icon_url, formatted_time)
     print("ctf_reviews.html 已成功產生！")
 
 print("所有頁面生成完畢。")
