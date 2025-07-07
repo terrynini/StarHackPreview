@@ -1,15 +1,15 @@
 import os
-import discord
-import asyncio
+import requests
 import html
+import time
 
 # 從 GitHub Secrets 讀取環境變數
 TOKEN = os.getenv('DISCORD_TOKEN')
-CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID')) # 頻道 ID 需要是整數
+CHANNEL_ID = os.getenv('DISCORD_CHANNEL_ID')
 INVITE_LINK = os.getenv('DISCORD_INVITE_LINK')
 
-# 設定要抓取的最大貼文數量
-MAX_POSTS_TO_FETCH = 15 # 例如，抓取最新的 15 篇貼文
+# 設定要抓取的最大貼文數量 (用於主頁面)
+MAX_POSTS_TO_FETCH = 15 
 
 # 設定 CTF 評價標籤的名稱
 CTF_TAG_NAME = "CTF評價"
@@ -19,108 +19,53 @@ if not TOKEN or not CHANNEL_ID:
     print("錯誤：請在 GitHub Repository 的 Settings -> Secrets 中設定 DISCORD_TOKEN 和 DISCORD_CHANNEL_ID")
     exit(1)
 
-# 定義 Bot 需要的權限 (Intents)
-intents = discord.Intents.default()
-intents.message_content = True # 允許讀取訊息內容
-intents.guilds = True # 允許讀取伺服器資訊
+headers = {
+    "Authorization": f"Bot {TOKEN}"
+}
 
-client = discord.Client(intents=intents)
-
-async def fetch_discord_content():
-    await client.wait_until_ready()
-    print(f"Logged in as {client.user}")
-
-    channel = client.get_channel(CHANNEL_ID)
-    if not channel:
-        print(f"錯誤：找不到頻道 ID {CHANNEL_ID}。請確認 ID 是否正確，且 Bot 有權限檢視該頻道。")
-        await client.close()
-        exit(1)
-
-    if not isinstance(channel, discord.ForumChannel):
-        print(f"錯誤：頻道 {channel.name} (ID: {CHANNEL_ID}) 不是一個論壇頻道。")
-        await client.close()
-        exit(1)
-
-    # --- 獲取 CTF 評價標籤 ID ---
-    ctf_tag_id = None
-    for tag in channel.available_tags:
-        if tag.name == CTF_TAG_NAME:
-            ctf_tag_id = tag.id
-            break
-    
-    if ctf_tag_id is None:
-        print(f"警告：找不到名為 '{CTF_TAG_NAME}' 的標籤。CTF 評價頁面將不會生成。")
-
-    all_threads = []
-    ctf_threads = []
-
-    # --- 優先抓取活躍貼文 ---
-    print("正在抓取活躍中的貼文...")
-    async for thread in channel.active_threads():
-        all_threads.append(thread)
-        if ctf_tag_id and ctf_tag_id in thread.applied_tags:
-            ctf_threads.append(thread)
-        if len(all_threads) >= MAX_POSTS_TO_FETCH:
-            break
-
-    # --- 如果活躍貼文不足，再補充封存貼文 ---
-    if len(all_threads) < MAX_POSTS_TO_FETCH:
-        print(f"活躍貼文不足 {MAX_POSTS_TO_FETCH} 篇，正在補充封存貼文...")
-        async for thread in channel.archived_threads(limit=MAX_POSTS_TO_FETCH - len(all_threads)):
-            all_threads.append(thread)
-            if ctf_tag_id and ctf_tag_id in thread.applied_tags:
-                ctf_threads.append(thread)
-            if len(all_threads) >= MAX_POSTS_TO_FETCH:
-                break
-
-    # --- 處理主頁面 (index.html) 內容 ---
-    html_content_main = ""
-    for thread in all_threads:
-        html_content_main += await process_thread(thread, INVITE_LINK)
-
-    if not html_content_main:
-        html_content_main = "<p>目前還沒有任何討論，快來發表第一篇吧！</p>"
-
-    await write_html_file('index.html', html_content_main, "社群討論精華")
-    print("index.html 已成功根據論壇內容產生！")
-
-    # --- 處理 CTF 評價頁面 (ctf_reviews.html) 內容 ---
-    if ctf_tag_id:
-        html_content_ctf = ""
-        for thread in ctf_threads:
-            html_content_ctf += await process_thread(thread, INVITE_LINK)
-        
-        if not html_content_ctf:
-            html_content_ctf = "<p>目前還沒有任何 CTF 評價貼文。</p>"
-
-        await write_html_file('ctf_reviews.html', html_content_ctf, "CTF 評價")
-        print("ctf_reviews.html 已成功產生！")
-    
-    await client.close()
-
-async def process_thread(thread, invite_link):
-    """處理單個貼文並返回其 HTML 片段"""
-    title = html.escape(thread.name)
-    
-    first_message_content = ""
+def fetch_first_message_content(thread_id):
+    """獲取指定貼文的第一則訊息內容。"""
+    messages_url = f"https://discord.com/api/v9/channels/{thread_id}/messages?limit=1"
     try:
-        async for message in thread.history(limit=1):
-            first_message_content = message.content
-            break
-    except discord.Forbidden:
-        print(f"警告：Bot 無權限讀取貼文 {thread.name} (ID: {thread.id}) 的訊息。")
-    except Exception as e:
-        print(f"獲取貼文 {thread.name} (ID: {thread.id}) 的訊息時發生錯誤: {e}")
+        msg_response = requests.get(messages_url, headers=headers, timeout=5)
+        msg_response.raise_for_status()
+        messages = msg_response.json()
+        if messages:
+            return messages[0].get('content', '')
+    except requests.exceptions.RequestException as e:
+        print(f"獲取貼文 {thread_id} 的訊息時出錯: {e}")
+    return None
 
-    summary_limit = 120
-    if first_message_content:
-        if len(first_message_content) > summary_limit:
-            summary = html.escape(first_message_content[:summary_limit]).replace('\n', '<br>') + '...'
-        else:
-            summary = html.escape(first_message_content).replace('\n', '<br>')
+def get_forum_channel_details(channel_id):
+    """獲取論壇頻道詳細資訊，包括標籤。"""
+    url = f"https://discord.com/api/v9/channels/{channel_id}"
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"獲取頻道詳細資訊時發生錯誤: {e}")
+        return None
+
+def get_threads(channel_id, thread_type="active", limit=None):
+    """獲取活躍或封存的貼文。"""
+    if thread_type == "active":
+        url = f"https://discord.com/api/v9/channels/{channel_id}/threads/active"
+    elif thread_type == "archived":
+        url = f"https://discord.com/api/v9/channels/{channel_id}/threads/archived/public?limit={limit if limit else 100}"
     else:
-        summary = "<i>(此貼文無內文)</i>"
+        return []
 
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        return response.json().get('threads', [])
+    except requests.exceptions.RequestException as e:
+        print(f"獲取 {thread_type} 貼文時發生錯誤: {e}")
+        return []
+
+def generate_post_html(title, summary, invite_link):
+    """生成單個貼文的 HTML 片段。"""
     html_snippet = f"""
     <div class="post">
         <h3>{title}</h3>
@@ -133,14 +78,13 @@ async def process_thread(thread, invite_link):
     html_snippet += "</div>\n"
     return html_snippet
 
-async def write_html_file(filename, content, page_title):
-    """將內容寫入 HTML 檔案"""
+def write_html_file(filename, content, page_title):
+    """將內容寫入 HTML 檔案。"""
     try:
         with open('template.html', 'r', encoding='utf-8') as f:
             template = f.read()
     except FileNotFoundError:
         print("錯誤：找不到 template.html 檔案。")
-        await client.close()
         exit(1)
 
     # 替換標題和內容
@@ -150,6 +94,91 @@ async def write_html_file(filename, content, page_title):
     with open(filename, 'w', encoding='utf-8') as f:
         f.write(final_html)
 
-# 啟動 Bot
-client.event(fetch_discord_content)
-client.run(TOKEN)
+# --- 主執行邏輯 ---
+
+# 1. 獲取論壇頻道詳細資訊以找到 CTF 標籤 ID
+forum_details = get_forum_channel_details(CHANNEL_ID)
+ctf_tag_id = None
+if forum_details and 'available_tags' in forum_details:
+    for tag in forum_details['available_tags']:
+        if tag['name'] == CTF_TAG_NAME:
+            ctf_tag_id = tag['id']
+            break
+
+if ctf_tag_id is None:
+    print(f"警告：找不到名為 '{CTF_TAG_NAME}' 的標籤。CTF 評價頁面將不會生成。")
+
+# 2. 獲取活躍和封存的貼文
+active_threads = get_threads(CHANNEL_ID, "active")
+time.sleep(0.5) # 避免速率限制
+archived_threads = get_threads(CHANNEL_ID, "archived", limit=MAX_POSTS_TO_FETCH * 2) # 抓多一點以確保有足夠的最新貼文
+time.sleep(0.5) # 避免速率限制
+
+# 3. 合併並去重所有貼文
+all_unique_threads = {}
+for thread in active_threads + archived_threads:
+    all_unique_threads[thread['id']] = thread
+
+# 4. 根據創建時間排序 (通常 id 越大代表越新)
+# 或者可以根據 'last_message_id' 或 'archive_timestamp' 排序，但 'id' 最簡單且通常足夠
+sorted_threads = sorted(all_unique_threads.values(), key=lambda x: int(x['id']), reverse=True)
+
+# 5. 篩選出最新的貼文和 CTF 貼文
+latest_threads = []
+ctf_threads = []
+
+for thread in sorted_threads:
+    # 檢查是否為 CTF 貼文
+    if ctf_tag_id and 'applied_tags' in thread and ctf_tag_id in thread['applied_tags']:
+        ctf_threads.append(thread)
+    
+    # 收集最新的貼文 (用於主頁面)
+    if len(latest_threads) < MAX_POSTS_TO_FETCH:
+        latest_threads.append(thread)
+
+# --- 生成主頁面 (index.html) ---
+html_content_main = ""
+for thread in latest_threads:
+    content = fetch_first_message_content(thread['id'])
+    if content is None: # API 請求失敗
+        continue
+
+    summary_limit = 120
+    if content:
+        summary = html.escape(content[:summary_limit]).replace('\n', '<br>') + '...'
+    else:
+        summary = "<i>(此貼文無內文)</i>"
+    
+    html_content_main += generate_post_html(html.escape(thread['name']), summary, INVITE_LINK)
+    time.sleep(0.2) # 每次獲取訊息後稍微延遲
+
+if not html_content_main:
+    html_content_main = "<p>目前還沒有任何討論，快來發表第一篇吧！</p>"
+
+write_html_file('index.html', html_content_main, "社群討論精華")
+print("index.html 已成功根據論壇內容產生！")
+
+# --- 生成 CTF 評價頁面 (ctf_reviews.html) ---
+if ctf_tag_id:
+    html_content_ctf = ""
+    for thread in ctf_threads:
+        content = fetch_first_message_content(thread['id'])
+        if content is None:
+            continue
+
+        summary_limit = 120
+        if content:
+            summary = html.escape(content[:summary_limit]).replace('\n', '<br>') + '...'
+        else:
+            summary = "<i>(此貼文無內文)</i>"
+        
+        html_content_ctf += generate_post_html(html.escape(thread['name']), summary, INVITE_LINK)
+        time.sleep(0.2) # 每次獲取訊息後稍微延遲
+
+    if not html_content_ctf:
+        html_content_ctf = "<p>目前還沒有任何 CTF 評價貼文。</p>"
+
+    write_html_file('ctf_reviews.html', html_content_ctf, "CTF 評價")
+    print("ctf_reviews.html 已成功產生！")
+
+print("所有頁面生成完畢。")
