@@ -30,6 +30,7 @@ def get_avatar_url(user_id, avatar_hash):
         return f"https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png"
     else:
         # 如果是預設頭貼 (新版 Discord 用戶沒有 discriminator)
+<<<<<<< HEAD
         # Discord 預設頭貼現在是基於用戶 ID 的 hash，但對於嵌入式頭貼，通常會用一個通用的預設圖
         # 這裡使用一個通用的預設頭貼，或者可以考慮根據 user_id 的最後一位數字來選擇 0-4 的預設頭貼
         return f"https://cdn.discordapp.com/embed/avatars/0.png" # 預設使用 0 號頭貼
@@ -38,15 +39,33 @@ def fetch_initial_post_data(thread_id):
     """獲取指定論壇貼文的初始貼文內容和作者資訊。"""
     # 論壇貼文的 ID 就是其初始貼文的訊息 ID
     message_url = f"https://discord.com/api/v9/channels/{thread_id}/messages/{thread_id}"
+=======
+        return f"https://cdn.discordapp.com/embed/avatars/0.png" # 預設使用 0 號頭貼
+
+def fetch_first_message_data(thread_id):
+    """獲取指定貼文的第一則訊息內容和作者資訊。"""
+    messages_url = f"https://discord.com/api/v9/channels/{thread_id}/messages?limit=1"
+>>>>>>> f915d7784d404bd02f6ee8b76f6c4082e084881a
     try:
         msg_response = requests.get(message_url, headers=headers, timeout=5)
         msg_response.raise_for_status()
+<<<<<<< HEAD
         message = msg_response.json() # 這會直接回傳單個訊息物件，而不是列表
         content = message.get('content', '')
         author = message.get('author', {})
         return content, author
     except requests.exceptions.RequestException as e:
         print(f"獲取初始貼文 {thread_id} 的訊息時出錯: {e}")
+=======
+        messages = msg_response.json()
+        if messages:
+            message = messages[0]
+            content = message.get('content', '')
+            author = message.get('author', {})
+            return content, author
+    except requests.exceptions.RequestException as e:
+        print(f"獲取貼文 {thread_id} 的訊息時出錯: {e}")
+>>>>>>> f915d7784d404bd02f6ee8b76f6c4082e084881a
     return None, None # Return None for both if failed
 
 def get_forum_channel_details(channel_id):
@@ -140,7 +159,6 @@ for thread in active_threads + archived_threads:
     all_unique_threads[thread['id']] = thread
 
 # 4. 根據創建時間排序 (通常 id 越大代表越新)
-# 或者可以根據 'last_message_id' 或 'archive_timestamp' 排序，但 'id' 最簡單且通常足夠
 sorted_threads = sorted(all_unique_threads.values(), key=lambda x: int(x['id']), reverse=True)
 
 # 5. 篩選出最新的貼文和 CTF 貼文
@@ -159,7 +177,11 @@ for thread in sorted_threads:
 # --- 生成主頁面 (index.html) ---
 html_content_main = ""
 for thread in latest_threads:
+<<<<<<< HEAD
     content, author_data = fetch_initial_post_data(thread['id'])
+=======
+    content, author_data = fetch_first_message_data(thread['id'])
+>>>>>>> f915d7784d404bd02f6ee8b76f6c4082e084881a
     if content is None and author_data is None: # API 請求失敗
         continue
 
@@ -206,7 +228,11 @@ print("index.html 已成功根據論壇內容產生！")
 if ctf_tag_id:
     html_content_ctf = ""
     for thread in ctf_threads:
+<<<<<<< HEAD
         content, author_data = fetch_initial_post_data(thread['id'])
+=======
+        content, author_data = fetch_first_message_data(thread['id'])
+>>>>>>> f915d7784d404bd02f6ee8b76f6c4082e084881a
         if content is None and author_data is None:
             continue
 
