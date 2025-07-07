@@ -2,6 +2,7 @@ import os
 import requests
 import html
 import time
+import math
 
 # 從 GitHub Secrets 讀取環境變數
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -34,7 +35,7 @@ def get_avatar_url(user_id, avatar_hash):
         return f"https://cdn.discordapp.com/embed/avatars/0.png" # 預設使用 0 號頭貼
 
 def fetch_initial_post_data(thread_id, guild_id):
-    """獲取指定論壇貼文的初始貼文內容、作者資訊及伺服器暱稱。"""
+    """獲取指定論壇貼文的初始貼文內容、作者資訊、伺服器暱稱及反應。"""
     # 論壇貼文的 ID 就是其初始貼文的訊息 ID
     message_url = f"https://discord.com/api/v9/channels/{thread_id}/messages/{thread_id}"
     try:
@@ -43,28 +44,70 @@ def fetch_initial_post_data(thread_id, guild_id):
         message = msg_response.json() # 這會直接回傳單個訊息物件，而不是列表
         content = message.get('content', '')
         author = message.get('author', {})
+        reactions = message.get('reactions', []) # 獲取 reactions 數據
 
         # --- 獲取伺服器暱稱 ---
-        author_name_to_display = author.get('username', '未知作者') # 預設使用 username
+        # 預設使用原始作者的 username，這是最基本的保證
+        author_name_to_display = author.get('username', '未知作者') 
+
         if 'id' in author and guild_id: # 確保有用戶 ID 和伺服器 ID
             member_url = f"https://discord.com/api/v9/guilds/{guild_id}/members/{author['id']}"
             try:
                 member_response = requests.get(member_url, headers=headers, timeout=5)
                 member_response.raise_for_status()
                 member_data = member_response.json()
-                if 'nick' in member_data and member_data['nick']:
+                
+                # 優先使用暱稱 (nick)
+                if member_data.get('nick'):
                     author_name_to_display = member_data['nick']
-                elif 'global_name' in author and author['global_name']:
+                # 其次使用成員資料中的 global_name (嵌套在 user 物件下)
+                elif member_data.get('user', {}).get('global_name'):
+                    author_name_to_display = member_data['user']['global_name']
+                # 最後使用原始作者資料中的 global_name
+                elif author.get('global_name'):
                     author_name_to_display = author['global_name']
+                # 如果以上都沒有，則保持原來的 username
+
             except requests.exceptions.RequestException as e:
                 # 如果獲取成員資訊失敗，可能是 Bot 沒有權限，或者用戶已不在伺服器
                 print(f"警告：獲取用戶 {author.get('id')} 在伺服器 {guild_id} 的成員資訊失敗: {e}")
             time.sleep(0.1) # 每次獲取成員資訊後稍微延遲
 
-        return content, author, author_name_to_display
+        return content, author, author_name_to_display, reactions
     except requests.exceptions.RequestException as e:
         print(f"獲取初始貼文 {thread_id} 的訊息時出錯: {e}")
-    return None, None, None # Return None for all if failed
+    return None, None, None, None # Return None for all if failed
+
+def calculate_star_rating(reactions):
+    """根據反應計算平均星級評分。"""
+    star_emoji_map = {
+        '1️⃣': 1,
+        '2️⃣': 2,
+        '3️⃣': 3,
+        '4️⃣': 4,
+        '5️⃣': 5,
+    }
+    total_score = 0
+    total_votes = 0
+
+    for reaction in reactions:
+        emoji_name = reaction['emoji']['name']
+        count = reaction['count']
+        if emoji_name in star_emoji_map:
+            total_score += star_emoji_map[emoji_name] * count
+            total_votes += count
+    
+    if total_votes > 0:
+        return total_score / total_votes
+    return 0
+
+def render_stars(average_rating):
+    """將平均分數轉換為 HTML 星級圖案。"""
+    filled_star = '★'
+    empty_star = '☆'
+    # 將平均分數四捨五入到最接近的整數，然後生成星星
+    num_filled = round(average_rating)
+    return f"<span class=\"star-rating\">{filled_star * num_filled}{empty_star * (5 - num_filled)}</span>"
 
 def get_forum_channel_details(channel_id):
     """獲取論壇頻道詳細資訊，包括標籤。"""
@@ -94,7 +137,7 @@ def get_threads(channel_id, thread_type="active", limit=None):
         print(f"獲取 {thread_type} 貼文時發生錯誤: {e}")
         return []
 
-def generate_post_html(title, summary, invite_link, author_display_name, author_avatar_url, tags_html):
+def generate_post_html(title, summary, invite_link, author_display_name, author_avatar_url, tags_html, star_rating_html=""):
     """生成單個貼文的 HTML 片段。"""
     html_snippet = f"""
     <div class="post-card">
@@ -104,6 +147,7 @@ def generate_post_html(title, summary, invite_link, author_display_name, author_
         </div>
         <h3>{title}</h3>
         <p>{summary}</p>
+        {star_rating_html} <!-- 新增星級評分 -->
         {tags_html}
     """
     
@@ -178,7 +222,7 @@ for thread in sorted_threads:
 # --- 生成主頁面 (index.html) ---
 html_content_main = ""
 for thread in latest_threads:
-    content, author_data, author_display_name = fetch_initial_post_data(thread['id'], forum_guild_id)
+    content, author_data, author_display_name, reactions = fetch_initial_post_data(thread['id'], forum_guild_id)
     if content is None and author_data is None: # API 請求失敗
         continue
 
@@ -204,13 +248,17 @@ for thread in latest_threads:
                 thread_tags_html += f'<span class="tag-item">{html.escape(tag_name)}</span>'
             thread_tags_html += '</div>'
 
+    # CTF 評價的星級評分只在 CTF 頁面顯示，主頁面不顯示
+    star_rating_html = ""
+
     html_content_main += generate_post_html(
         html.escape(thread['name']),
         summary,
         INVITE_LINK,
         author_display_name,
         author_avatar_url,
-        thread_tags_html
+        thread_tags_html,
+        star_rating_html
     )
     time.sleep(0.2) # 每次獲取訊息後稍微延遲
 
@@ -224,8 +272,8 @@ print("index.html 已成功根據論壇內容產生！")
 if ctf_tag_id:
     html_content_ctf = ""
     for thread in ctf_threads:
-        content, author_data, author_display_name = fetch_initial_post_data(thread['id'], forum_guild_id)
-        if content is None and author_data is None:
+        content, author_data, author_display_name, reactions = fetch_initial_post_data(thread['id'], forum_guild_id)
+        if content is None and author_data is None: # API 請求失敗
             continue
 
         summary_limit = 120
@@ -250,13 +298,20 @@ if ctf_tag_id:
                     thread_tags_html += f'<span class="tag-item">{html.escape(tag_name)}</span>'
                 thread_tags_html += '</div>'
 
+        # 計算並渲染星級評分
+        average_rating = calculate_star_rating(reactions)
+        star_rating_html = ""
+        if average_rating > 0:
+            star_rating_html = render_stars(average_rating)
+
         html_content_ctf += generate_post_html(
             html.escape(thread['name']),
             summary,
             INVITE_LINK,
             author_display_name,
             author_avatar_url,
-            thread_tags_html
+            thread_tags_html,
+            star_rating_html # 傳遞星級評分 HTML
         )
         time.sleep(0.2) # 每次獲取訊息後稍微延遲
 

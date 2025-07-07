@@ -22,6 +22,8 @@
             --border-color: #dee2e6; /* Light border */
             --link-color: var(--primary-color);
             --link-hover-color: #0056b3;
+
+            --star-color: #ffc107; /* Golden yellow for stars */
         }
 
         @media (prefers-color-scheme: dark) {
@@ -168,6 +170,13 @@
             background-color: #218838; /* Darker green */
         }
 
+        .star-rating {
+            font-size: 1.5em; /* Make stars larger */
+            color: var(--star-color); /* Golden color */
+            margin-bottom: 1rem; /* Space below stars */
+            display: block; /* Ensure it takes full width */
+        }
+
         footer {
             text-align: center;
             padding: 2rem 1rem;
@@ -196,6 +205,7 @@
         </div>
         <h3>金盾獎超神</h3>
         <p>測試...</p>
+        <span class="star-rating">★★★☆☆</span> <!-- 新增星級評分 -->
         <div class="tags-container"><span class="tag-item">CTF評價</span></div>
     <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 

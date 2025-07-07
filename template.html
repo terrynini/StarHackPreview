@@ -22,6 +22,8 @@
             --border-color: #dee2e6; /* Light border */
             --link-color: var(--primary-color);
             --link-hover-color: #0056b3;
+
+            --star-color: #ffc107; /* Golden yellow for stars */
         }
 
         @media (prefers-color-scheme: dark) {
@@ -166,6 +168,13 @@
 
         .join-link:hover {
             background-color: #218838; /* Darker green */
+        }
+
+        .star-rating {
+            font-size: 1.5em; /* Make stars larger */
+            color: var(--star-color); /* Golden color */
+            margin-bottom: 1rem; /* Space below stars */
+            display: block; /* Ensure it takes full width */
         }
 
         footer {
