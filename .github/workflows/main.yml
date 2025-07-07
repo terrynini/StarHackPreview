@@ -4,7 +4,7 @@ name: Fetch Discord Content
 # 2. workflow_dispatch: 允許你手動在 Actions 頁面觸發
 on:
   schedule:
-    - cron: '0 */8 * * *'
+    - cron: '0 */1 * * *'
   workflow_dispatch:
 jobs:
   build:
