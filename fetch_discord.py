@@ -4,7 +4,7 @@ import html
 import time
 import math
 import datetime
-import pytz # 新增：引入 pytz 模組
+import pytz
 
 # 從 GitHub Secrets 讀取環境變數
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -52,7 +52,7 @@ def fetch_thread_content_and_replies(thread_id, guild_id, fetch_replies=False, r
         message = msg_response.json() 
         content = message.get('content', '')
         author = message.get('author', {})
-        reactions = message.get('reactions', []) 
+        # reactions = message.get('reactions', []) # 不再直接回傳 reactions，由 calculate_star_rating 處理
 
         # --- 獲取伺服器暱稱 ---
         author_name_to_display = author.get('username', '未知作者') 
@@ -114,41 +114,61 @@ def fetch_thread_content_and_replies(thread_id, guild_id, fetch_replies=False, r
             except requests.exceptions.RequestException as e:
                 print(f"警告：獲取貼文 {thread_id} 的回覆時發生錯誤: {e}")
 
-        return content, author, author_name_to_display, reactions, replies
+        return content, author, author_name_to_display, replies
     except requests.exceptions.RequestException as e:
         print(f"獲取初始貼文 {thread_id} 的訊息時出錯: {e}")
-    return None, None, None, None, [] # Return None for all if failed
+    return None, None, None, [] # Return None for all if failed
 
-def calculate_star_rating(reactions):
-    """根據反應計算平均星級評分。"""
-    star_emoji_map = {
+def calculate_star_rating(thread_id, guild_id):
+    """根據每個用戶的最高星級反應計算平均星級評分，並返回總投票數。"""
+    star_emojis = {
         '1️⃣': 1,
         '2️⃣': 2,
         '3️⃣': 3,
         '4️⃣': 4,
         '5️⃣': 5,
     }
-    total_score = 0
-    total_votes = 0
-
-    for reaction in reactions:
-        emoji_name = reaction['emoji']['name']
-        count = reaction['count']
-        if emoji_name in star_emoji_map:
-            total_score += star_emoji_map[emoji_name] * count
-            total_votes += count
     
-    if total_votes > 0:
-        return total_score / total_votes
-    return 0
+    user_ratings = {} # {user_id: highest_star_value}
 
-def render_stars(average_rating):
-    """將平均分數轉換為 HTML 星級圖案。"""
-    filled_star = '★'
-    empty_star = '☆'
+    for emoji_name, star_value in star_emojis.items():
+        # 獲取對該表情符號做出反應的用戶列表
+        reactions_url = f"https://discord.com/api/v9/channels/{thread_id}/messages/{thread_id}/reactions/{emoji_name}?limit=100" # limit 100 is max
+        try:
+            reaction_response = requests.get(reactions_url, headers=headers, timeout=5)
+            reaction_response.raise_for_status()
+            users_reacted = reaction_response.json()
+            
+            for user in users_reacted:
+                user_id = user['id']
+                # 如果用戶已經評分過，只保留最高分
+                if user_id not in user_ratings or star_value > user_ratings[user_id]:
+                    user_ratings[user_id] = star_value
+            
+            time.sleep(0.5) # 每次獲取反應用戶列表後延遲
+
+        except requests.exceptions.RequestException as e:
+            print(f"警告：獲取貼文 {thread_id} 的表情符號 {emoji_name} 反應用戶失敗: {e}")
+            # 繼續處理下一個表情符號，不中斷
+
+    total_score = sum(user_ratings.values())
+    total_unique_voters = len(user_ratings)
+    
+    if total_unique_voters > 0:
+        return total_score / total_unique_voters, total_unique_voters
+    return 0, 0
+
+def render_stars(average_rating, total_unique_voters):
+    """將平均分數轉換為 HTML 星級圖案，並顯示具體分數和總投票數。"""
+    filled_star_html = '<span class="filled-star">★</span>'
+    empty_star_html = '<span class="empty-star">☆</span>'
+    
     # 將平均分數四捨五入到最接近的整數，然後生成星星
     num_filled = round(average_rating)
-    return f"<span class=\"star-rating\">{filled_star * num_filled}{empty_star * (5 - num_filled)}</span>"
+    
+    stars_html = f"{filled_star_html * num_filled}{empty_star_html * (5 - num_filled)}"
+    
+    return f"<span class=\"star-rating\">賽事社群評分: {stars_html} {average_rating:.1f}/5 ({total_unique_voters} 人評分)</span>"
 
 def get_forum_channel_details(channel_id):
     """獲取論壇頻道詳細資訊，包括標籤。"""
@@ -226,11 +246,11 @@ def generate_post_html(title, summary, invite_link, author_display_name, author_
         <div class="post-header">
             <img src="{author_avatar_url}" alt="{author_display_name}'s avatar" class="author-avatar">
             <span class="author-name">{author_display_name}</span>
+            {tags_html} <!-- 標籤移動到這裡 -->
         </div>
         <h3>{title}</h3>
         <p>{summary}</p>
         {star_rating_html} 
-        {tags_html}
         {replies_html} <!-- 新增回覆區塊 -->
     """
     
@@ -315,7 +335,7 @@ formatted_time = current_taiwan_time.strftime('%Y-%m-%d %H:%M %Z%z') # 格式化
 # --- 生成主頁面 (index.html) ---
 html_content_main = ""
 for thread in latest_threads:
-    content, author_data, author_display_name, reactions, _ = fetch_thread_content_and_replies(thread['id'], forum_guild_id)
+    content, author_data, author_display_name, _ = fetch_thread_content_and_replies(thread['id'], forum_guild_id)
     if content is None and author_data is None: 
         continue
 
@@ -372,9 +392,9 @@ print("index.html 已成功根據論壇內容產生！")
 if ctf_tag_id:
     html_content_ctf = ""
     for i, thread in enumerate(ctf_threads):
-        # 對於前 5 篇 CTF 貼文，獲取回覆
+        # 對於 CTF 評價頁面，獲取所有數據，包括 reactions
         fetch_replies = (i < 5) # 只對前 5 篇獲取回覆
-        content, author_data, author_display_name, reactions, replies = fetch_thread_content_and_replies(thread['id'], forum_guild_id, fetch_replies=fetch_replies)
+        content, author_data, author_display_name, replies = fetch_thread_content_and_replies(thread['id'], forum_guild_id, fetch_replies=fetch_replies)
         if content is None and author_data is None: 
             continue
 
@@ -400,11 +420,11 @@ if ctf_tag_id:
                     thread_tags_html += f'<span class="tag-item">{html.escape(tag_name)}</span>'
                 thread_tags_html += '</div>'
 
-        # 計算並渲染星級評分
-        average_rating = calculate_star_rating(reactions)
+        # 計算並渲染星級評分 (現在會為每個 CTF 貼文重新獲取反應用戶列表)
+        average_rating, total_unique_voters = calculate_star_rating(thread['id'], forum_guild_id) 
         star_rating_html = ""
-        if average_rating > 0:
-            star_rating_html = render_stars(average_rating)
+        if total_unique_voters > 0: 
+            star_rating_html = render_stars(average_rating, total_unique_voters) 
 
         # 渲染回覆
         replies_html = ""

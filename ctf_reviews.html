@@ -23,7 +23,8 @@
             --link-color: var(--primary-color);
             --link-hover-color: #0056b3;
 
-            --star-color: #ffc107; /* Golden yellow for stars */
+            --star-color: #ffc107; /* Golden yellow for filled stars */
+            --empty-star-color: #ccc; /* Light gray for empty stars */
         }
 
         @media (prefers-color-scheme: dark) {
@@ -34,6 +35,7 @@
                 --border-color: #424242; /* Dark border */
                 --link-color: #64b5f6; /* Lighter blue for links */
                 --link-hover-color: #90caf9;
+                --empty-star-color: #666; /* Darker gray for empty stars in dark mode */
             }
         }
 
@@ -166,8 +168,10 @@
         }
 
         .post-header {
-            display: flex;
+            display: grid; /* 使用 Grid 佈局 */
+            grid-template-columns: auto 1fr auto; /* 頭貼 | 名稱 | 標籤 */
             align-items: center;
+            gap: 10px; /* 元素間距 */
             margin-bottom: 1rem;
         }
 
@@ -175,13 +179,14 @@
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            margin-right: 10px;
+            margin-right: 0; /* 移除原有的 margin-right */
             border: 2px solid var(--primary-color);
         }
 
         .author-name {
             font-weight: bold;
             color: var(--secondary-color);
+            margin-right: 0; /* 移除原有的 margin-right */
         }
 
         .post-card h3 {
@@ -197,8 +202,11 @@
         }
 
         .tags-container {
-            margin-top: 1rem;
-            margin-bottom: 1rem;
+            /* 標籤現在是 grid 項目，不需要 flex 佈局 */
+            display: flex; /* 讓標籤在容器內水平排列 */
+            flex-wrap: wrap;
+            gap: 5px; /* 標籤間距 */
+            justify-self: end; /* 讓標籤靠右對齊 */
         }
 
         .tag-item {
@@ -208,8 +216,8 @@
             padding: 0.3em 0.6em;
             border-radius: 4px;
             font-size: 0.85em;
-            margin-right: 0.5em;
-            margin-bottom: 0.5em;
+            /* margin-right: 0.5em; */ /* 移除，使用 gap */
+            /* margin-bottom: 0.5em; */ /* 移除，使用 gap */
         }
 
         .join-link {
@@ -229,9 +237,16 @@
 
         .star-rating {
             font-size: 1.5em; /* Make stars larger */
-            color: var(--star-color); /* Golden color */
             margin-bottom: 1rem; /* Space below stars */
             display: block; /* Ensure it takes full width */
+        }
+
+        .star-rating .filled-star {
+            color: var(--star-color); /* Yellow for filled stars */
+        }
+
+        .star-rating .empty-star {
+            color: var(--empty-star-color); /* Gray for empty stars */
         }
 
         .replies-container {
@@ -335,11 +350,11 @@
         <div class="post-header">
             <img src="https://cdn.discordapp.com/avatars/538594254973304853/a_6fd03d22617683f4defbf7781b783be5.png" alt="NiNi's avatar" class="author-avatar">
             <span class="author-name">NiNi</span>
+            <div class="tags-container"><span class="tag-item">CTF評價</span></div> <!-- 標籤移動到這裡 -->
         </div>
         <h3>金盾獎超神</h3>
         <p>測試...</p>
-        <span class="star-rating">★★★☆☆</span> 
-        <div class="tags-container"><span class="tag-item">CTF評價</span></div>
+        <span class="star-rating">賽事社群評分: <span class="filled-star">★</span><span class="filled-star">★</span><span class="filled-star">★</span><span class="filled-star">★</span><span class="filled-star">★</span> 5.0/5 (1 人評分)</span> 
         <div class="replies-container"><h4>最新回覆：</h4>
                 <div class="reply-item">
                     <img src="https://cdn.discordapp.com/avatars/115411173381242888/994201cc76aad2b79ba4867765daf711.png" alt="TwinkleStar03's avatar" class="reply-avatar">
@@ -358,7 +373,7 @@
     </main>
     <footer>
         <p>此頁面由 GitHub Action 自動更新。</p>
-        <span class="update-time">最後更新時間: 2025-07-08 00:24 CST+0800</span>
+        <span class="update-time">最後更新時間: 2025-07-08 00:56 CST+0800</span>
     </footer>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
