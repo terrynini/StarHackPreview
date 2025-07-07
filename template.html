@@ -46,21 +46,44 @@
             padding: 0;
         }
 
-        header {
+        .site-header {
             background-color: var(--dark-color);
             color: var(--light-color);
-            padding: 2rem 1rem;
+            padding: 1.5rem 1rem;
             text-align: center;
             margin-bottom: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
 
-        header h1 {
-            margin-top: 0;
-            margin-bottom: 0.5rem;
-            font-size: 2.5rem;
+        .server-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
         }
 
-        header p {
+        .server-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            margin-right: 15px;
+            border: 3px solid var(--primary-color);
+        }
+
+        .server-name {
+            font-size: 2.2rem;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .site-header h1 {
+            /* Removed: margin-top: 0; margin-bottom: 0.5rem; font-size: 2.5rem; */
+            display: none; /* Hide the page title */
+        }
+
+        .site-header p {
             font-size: 1.1rem;
             opacity: 0.9;
         }
@@ -71,6 +94,7 @@
             text-align: center;
             border-bottom: 1px solid var(--border-color);
             margin-bottom: 2rem;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
         }
 
         nav a {
@@ -79,12 +103,45 @@
             padding: 0.75rem 1.5rem;
             margin: 0 0.5rem;
             border-radius: 5px;
-            transition: background-color 0.3s ease;
+            transition: background-color 0.3s ease, color 0.3s ease; /* Removed transform */
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            position: relative;
+            overflow: hidden;
+            z-index: 1; /* Ensure text is above ::before */
+        }
+
+        nav a::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--primary-color); /* Solid color for hover */
+            transition: opacity 0.3s ease; /* Smooth opacity transition */
+            opacity: 0; /* Hidden by default */
+            z-index: -1;
+        }
+
+        nav a:hover::before {
+            opacity: 1; /* Show on hover */
         }
 
         nav a:hover {
-            background-color: var(--primary-color);
+            color: var(--light-color); /* Text color on hover */
+        }
+
+        /* Active navigation link style */
+        nav a.nav-active {
+            background-color: var(--primary-color); /* Solid background for active */
             color: var(--light-color);
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2); /* Subtle inner shadow */
+        }
+
+        nav a.nav-active::before {
+            opacity: 1; /* Ensure it stays filled */
         }
 
         main {
@@ -177,6 +234,78 @@
             display: block; /* Ensure it takes full width */
         }
 
+        .replies-container {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px dashed var(--border-color);
+        }
+
+        .replies-container h4 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+            font-size: 1.1rem;
+        }
+
+        .reply-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+            background-color: var(--light-color);
+            padding: 0.75rem;
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .reply-item {
+                background-color: #3a3a3a;
+            }
+        }
+
+        .reply-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+
+        .reply-author {
+            font-weight: bold;
+            margin-right: 0.5em;
+            color: var(--primary-color);
+        }
+
+        .reply-content {
+            flex-grow: 1;
+            color: var(--text-color);
+        }
+
+        .info-card {
+            background-color: var(--info-color);
+            color: var(--light-color);
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 2rem;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-card p {
+            margin-bottom: 1rem;
+            font-size: 1.1em;
+        }
+
+        .info-card .join-link {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .info-card .join-link:hover {
+            background-color: #0056b3;
+        }
+
         footer {
             text-align: center;
             padding: 2rem 1rem;
@@ -188,8 +317,12 @@
     </style>
 </head>
 <body>
-    <header>
-        <h1><!-- PAGE_TITLE --></h1>
+    <header class="site-header">
+        <div class="server-info">
+            <img src="<!-- SERVER_ICON_URL -->" alt="Server Icon" class="server-icon">
+            <h2 class="server-name"><!-- SERVER_NAME --></h2>
+        </div>
+        <!-- <h1><!-- PAGE_TITLE --></h1> --><!-- 移除大標題 -->
         <p>這裡是我們社群最新討論的摘要，完整內容都在 Discord！</p>
     </header>
     <nav>
@@ -202,5 +335,18 @@
     <footer>
         <p>此頁面由 GitHub Action 自動更新。</p>
     </footer>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const navLinks = document.querySelectorAll('nav a');
+            const currentPath = window.location.pathname.split('/').pop(); // Get filename (e.g., index.html or ctf_reviews.html)
+
+            navLinks.forEach(link => {
+                const linkPath = link.getAttribute('href');
+                if (linkPath === currentPath) {
+                    link.classList.add('nav-active');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
