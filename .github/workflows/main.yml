@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 授予 workflow 寫入 repository 內容的權限
     steps:
       # 步驟 1: Checkout 你的程式碼
       - name: Checkout repository
