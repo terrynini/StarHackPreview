@@ -23,18 +23,30 @@ headers = {
     "Authorization": f"Bot {TOKEN}"
 }
 
-def fetch_first_message_content(thread_id):
-    """獲取指定貼文的第一則訊息內容。"""
+def get_avatar_url(user_id, avatar_hash):
+    """根據用戶 ID 和頭貼 hash 生成頭貼 URL"""
+    if avatar_hash:
+        # 如果有自定義頭貼
+        return f"https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png"
+    else:
+        # 如果是預設頭貼 (新版 Discord 用戶沒有 discriminator)
+        return f"https://cdn.discordapp.com/embed/avatars/0.png" # 預設使用 0 號頭貼
+
+def fetch_first_message_data(thread_id):
+    """獲取指定貼文的第一則訊息內容和作者資訊。"""
     messages_url = f"https://discord.com/api/v9/channels/{thread_id}/messages?limit=1"
     try:
         msg_response = requests.get(messages_url, headers=headers, timeout=5)
         msg_response.raise_for_status()
         messages = msg_response.json()
         if messages:
-            return messages[0].get('content', '')
+            message = messages[0]
+            content = message.get('content', '')
+            author = message.get('author', {})
+            return content, author
     except requests.exceptions.RequestException as e:
         print(f"獲取貼文 {thread_id} 的訊息時出錯: {e}")
-    return None
+    return None, None # Return None for both if failed
 
 def get_forum_channel_details(channel_id):
     """獲取論壇頻道詳細資訊，包括標籤。"""
@@ -64,16 +76,21 @@ def get_threads(channel_id, thread_type="active", limit=None):
         print(f"獲取 {thread_type} 貼文時發生錯誤: {e}")
         return []
 
-def generate_post_html(title, summary, invite_link):
+def generate_post_html(title, summary, invite_link, author_name, author_avatar_url, tags_html):
     """生成單個貼文的 HTML 片段。"""
     html_snippet = f"""
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="{author_avatar_url}" alt="{author_name}'s avatar" class="author-avatar">
+            <span class="author-name">{author_name}</span>
+        </div>
         <h3>{title}</h3>
         <p>{summary}</p>
+        {tags_html}
     """
     
     if invite_link:
-        html_snippet += f'<a href="{invite_link}" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a>'
+        html_snippet += f'<a href="{invite_link}" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a>'
         
     html_snippet += "</div>\n"
     return html_snippet
@@ -96,14 +113,16 @@ def write_html_file(filename, content, page_title):
 
 # --- 主執行邏輯 ---
 
-# 1. 獲取論壇頻道詳細資訊以找到 CTF 標籤 ID
+# 1. 獲取論壇頻道詳細資訊以找到 CTF 標籤 ID 和所有標籤映射
 forum_details = get_forum_channel_details(CHANNEL_ID)
 ctf_tag_id = None
+tag_map = {}
+
 if forum_details and 'available_tags' in forum_details:
     for tag in forum_details['available_tags']:
+        tag_map[tag['id']] = tag['name']
         if tag['name'] == CTF_TAG_NAME:
             ctf_tag_id = tag['id']
-            break
 
 if ctf_tag_id is None:
     print(f"警告：找不到名為 '{CTF_TAG_NAME}' 的標籤。CTF 評價頁面將不會生成。")
@@ -120,7 +139,6 @@ for thread in active_threads + archived_threads:
     all_unique_threads[thread['id']] = thread
 
 # 4. 根據創建時間排序 (通常 id 越大代表越新)
-# 或者可以根據 'last_message_id' 或 'archive_timestamp' 排序，但 'id' 最簡單且通常足夠
 sorted_threads = sorted(all_unique_threads.values(), key=lambda x: int(x['id']), reverse=True)
 
 # 5. 篩選出最新的貼文和 CTF 貼文
@@ -139,8 +157,8 @@ for thread in sorted_threads:
 # --- 生成主頁面 (index.html) ---
 html_content_main = ""
 for thread in latest_threads:
-    content = fetch_first_message_content(thread['id'])
-    if content is None: # API 請求失敗
+    content, author_data = fetch_first_message_data(thread['id'])
+    if content is None and author_data is None: # API 請求失敗
         continue
 
     summary_limit = 120
@@ -149,7 +167,31 @@ for thread in latest_threads:
     else:
         summary = "<i>(此貼文無內文)</i>"
     
-    html_content_main += generate_post_html(html.escape(thread['name']), summary, INVITE_LINK)
+    author_name = html.escape(author_data.get('username', '未知作者'))
+    author_id = author_data.get('id')
+    avatar_hash = author_data.get('avatar')
+    author_avatar_url = get_avatar_url(author_id, avatar_hash)
+
+    thread_tags_html = ""
+    if 'applied_tags' in thread and tag_map:
+        tags_list = []
+        for tag_id in thread['applied_tags']:
+            if tag_id in tag_map:
+                tags_list.append(tag_map[tag_id])
+        if tags_list:
+            thread_tags_html = '<div class="tags-container">'
+            for tag_name in tags_list:
+                thread_tags_html += f'<span class="tag-item">{html.escape(tag_name)}</span>'
+            thread_tags_html += '</div>'
+
+    html_content_main += generate_post_html(
+        html.escape(thread['name']),
+        summary,
+        INVITE_LINK,
+        author_name,
+        author_avatar_url,
+        thread_tags_html
+    )
     time.sleep(0.2) # 每次獲取訊息後稍微延遲
 
 if not html_content_main:
@@ -162,8 +204,8 @@ print("index.html 已成功根據論壇內容產生！")
 if ctf_tag_id:
     html_content_ctf = ""
     for thread in ctf_threads:
-        content = fetch_first_message_content(thread['id'])
-        if content is None:
+        content, author_data = fetch_first_message_data(thread['id'])
+        if content is None and author_data is None:
             continue
 
         summary_limit = 120
@@ -172,7 +214,31 @@ if ctf_tag_id:
         else:
             summary = "<i>(此貼文無內文)</i>"
         
-        html_content_ctf += generate_post_html(html.escape(thread['name']), summary, INVITE_LINK)
+        author_name = html.escape(author_data.get('username', '未知作者'))
+        author_id = author_data.get('id')
+        avatar_hash = author_data.get('avatar')
+        author_avatar_url = get_avatar_url(author_id, avatar_hash)
+
+        thread_tags_html = ""
+        if 'applied_tags' in thread and tag_map:
+            tags_list = []
+            for tag_id in thread['applied_tags']:
+                if tag_id in tag_map:
+                    tags_list.append(tag_map[tag_id])
+            if tags_list:
+                thread_tags_html = '<div class="tags-container">'
+                for tag_name in tags_list:
+                    thread_tags_html += f'<span class="tag-item">{html.escape(tag_name)}</span>'
+                thread_tags_html += '</div>'
+
+        html_content_ctf += generate_post_html(
+            html.escape(thread['name']),
+            summary,
+            INVITE_LINK,
+            author_name,
+            author_avatar_url,
+            thread_tags_html
+        )
         time.sleep(0.2) # 每次獲取訊息後稍微延遲
 
     if not html_content_ctf:

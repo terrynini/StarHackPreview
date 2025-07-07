@@ -6,33 +6,175 @@
     <title>社群討論精華</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-css-theme@1.2.1/css/simple.min.css">
     <style>
-        body { container: main / inline-size; }
-        main { padding: 1rem; }
-        .post {
-            border: 1px solid var(--border);
-            padding: 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            background-color: var(--bg-secondary);
+        :root {
+            --primary-color: #007bff; /* Bootstrap primary blue */
+            --secondary-color: #6c757d; /* Bootstrap secondary gray */
+            --success-color: #28a745;
+            --info-color: #17a2b8;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+
+            --bg-primary: #ffffff; /* White background */
+            --bg-secondary: #f8f9fa; /* Light gray for cards */
+            --text-color: #212529; /* Dark text */
+            --border-color: #dee2e6; /* Light border */
+            --link-color: var(--primary-color);
+            --link-hover-color: #0056b3;
         }
-        .post h3 {
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #212121; /* Dark background */
+                --bg-secondary: #303030; /* Darker gray for cards */
+                --text-color: #e0e0e0; /* Light text */
+                --border-color: #424242; /* Dark border */
+                --link-color: #64b5f6; /* Lighter blue for links */
+                --link-hover-color: #90caf9;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-primary);
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background-color: var(--dark-color);
+            color: var(--light-color);
+            padding: 2rem 1rem;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
             margin-top: 0;
+            margin-bottom: 0.5rem;
+            font-size: 2.5rem;
         }
-        .post p {
+
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        nav {
+            background-color: var(--bg-secondary);
+            padding: 1rem 0;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+
+        nav a {
+            color: var(--primary-color);
+            text-decoration: none;
+            padding: 0.75rem 1.5rem;
+            margin: 0 0.5rem;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        nav a:hover {
+            background-color: var(--primary-color);
+            color: var(--light-color);
+        }
+
+        main {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .post-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .post-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .post-header {
+            display: flex;
+            align-items: center;
             margin-bottom: 1rem;
         }
-        .post a {
+
+        .author-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid var(--primary-color);
+        }
+
+        .author-name {
             font-weight: bold;
+            color: var(--secondary-color);
         }
-        nav {
-            margin-bottom: 2rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border);
+
+        .post-card h3 {
+            margin-top: 0.5rem;
+            margin-bottom: 0.75rem;
+            font-size: 1.5rem;
+            color: var(--text-color);
         }
-        nav a {
-            margin-right: 1rem;
+
+        .post-card p {
+            margin-bottom: 1rem;
+            color: var(--text-color);
+        }
+
+        .tags-container {
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .tag-item {
+            display: inline-block;
+            background-color: var(--info-color);
+            color: var(--light-color);
+            padding: 0.3em 0.6em;
+            border-radius: 4px;
+            font-size: 0.85em;
+            margin-right: 0.5em;
+            margin-bottom: 0.5em;
+        }
+
+        .join-link {
+            display: inline-block;
+            background-color: var(--success-color);
+            color: white;
+            padding: 0.75rem 1.25rem;
+            border-radius: 5px;
             text-decoration: none;
             font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        .join-link:hover {
+            background-color: #218838; /* Darker green */
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            margin-top: 3rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--secondary-color);
+            font-size: 0.9em;
         }
     </style>
 </head>
@@ -47,80 +189,155 @@
     </nav>
     <main>
         
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/538594254973304853/a_6fd03d22617683f4defbf7781b783be5.png" alt="nini38514's avatar" class="author-avatar">
+            <span class="author-name">nini38514</span>
+        </div>
         <h3>金盾獎超神</h3>
         <p>測試...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">CTF評價</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/429639993007538178/55e0b19c7054d3171b64f02dcf804fbd.png" alt="shallowfeather's avatar" class="author-avatar">
+            <span class="author-name">shallowfeather</span>
+        </div>
         <h3>InfoSec Taiwan CTF 2025（徵隊友）</h3>
         <p>要不要開打...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">CTF組隊</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/607856720470999041/bccf9df9082281263aa4467c077a1ace.png" alt="yjk0805's avatar" class="author-avatar">
+            <span class="author-name">yjk0805</span>
+        </div>
         <h3>2025 AIS3 pre-exam Writeup 收集</h3>
         <p>https://hackmd.io/@yjk930805/rklwQbNzlg...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">資料整理</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/538594254973304853/a_6fd03d22617683f4defbf7781b783be5.png" alt="nini38514's avatar" class="author-avatar">
+            <span class="author-name">nini38514</span>
+        </div>
         <h3>CVE-2012-2122 A Tragically Comedic Security Flaw in MySQL</h3>
         <p>https://www.rapid7.com/blog/post/2012/06/11/cve-2012-2122-a-tragically-comedic-security-flaw-in-mysql/<br><br>- MySQL 在登入驗證的邏輯...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">讀書筆記</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/1075009702771044363/9db1b3796b0c59027283b4b34b8992a6.png" alt="haner0.o's avatar" class="author-avatar">
+            <span class="author-name">haner0.o</span>
+        </div>
         <h3>學生自架校務系統的個資問題</h3>
         <p>謝謝謝謝...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">提問</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/538594254973304853/a_6fd03d22617683f4defbf7781b783be5.png" alt="nini38514's avatar" class="author-avatar">
+            <span class="author-name">nini38514</span>
+        </div>
         <h3>Can You Really Trust That Permission Pop-Up On macOS (CVE-2025-31250)</h3>
         <p>https://wts.dev/posts/tcc-who/<br><br>- CVE-2025-31250<br>  - 在 macOS Sequoia 15.5 被 patch<br>  - 這個漏洞允許任何 Application A 顯示 permissi...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">讀書筆記</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/538594254973304853/a_6fd03d22617683f4defbf7781b783be5.png" alt="nini38514's avatar" class="author-avatar">
+            <span class="author-name">nini38514</span>
+        </div>
         <h3>Your Brain on ChatGPT: Accumulation of Cognitive Debt when Using an AI Assistant for Essay Writing</h3>
         <p>https://arxiv.org/abs/2506.08872<br><br>我覺得像我這種非專業人士大概讀前面四頁就好了&lt;:C90Coder:727589969064886385&gt; <br><br>大概是前兩頁的內容，有興趣可以看三四頁有一張 table，我感...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">讀書筆記</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/400317206610837506/cb2d6f9e0ec9b13203110a14f5bfde16.png" alt="l4ys.tw's avatar" class="author-avatar">
+            <span class="author-name">l4ys.tw</span>
+        </div>
         <h3>Executing Kernel Routines via Syscall Table Hijack</h3>
         <p>喔最後是跑任意 routine 不是 shellcode...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">讀書筆記</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/500520468722352141/3641d8f2bb6b2b1a9994106276d1b142.png" alt="ginoah's avatar" class="author-avatar">
+            <span class="author-name">ginoah</span>
+        </div>
         <h3>One-Click RCE in ASUS’s Preinstalled Driver Software</h3>
         <p>&gt; Part Two of this series on ASUS will be dropping within a week, yes it somehow manages to get worse...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">讀書筆記</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/538594254973304853/a_6fd03d22617683f4defbf7781b783be5.png" alt="nini38514's avatar" class="author-avatar">
+            <span class="author-name">nini38514</span>
+        </div>
         <h3>How I used o3 to find CVE-2025-37899, a remote zeroday vulnerability in the Linux kernel’s SMB imple</h3>
         <p>https://sean.heelan.io/2025/05/22/how-i-used-o3-to-find-cve-2025-37899-a-remote-zeroday-vulnerability-in-the-linux-kerne...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">讀書筆記</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/538594254973304853/a_6fd03d22617683f4defbf7781b783be5.png" alt="nini38514's avatar" class="author-avatar">
+            <span class="author-name">nini38514</span>
+        </div>
         <h3>Leaking the email of any YouTube user for $10,000</h3>
         <p>（這個之前在 &lt;#1313340987413893120&gt;   貼過了，搬過來論壇而已）<br><br>https://brutecat.com/articles/leaking-youtube-emails<br>作者找到漏洞可以 leak 任意 YouT...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">讀書筆記</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/538594254973304853/a_6fd03d22617683f4defbf7781b783be5.png" alt="nini38514's avatar" class="author-avatar">
+            <span class="author-name">nini38514</span>
+        </div>
         <h3>Jigsaw RDPuzzle: Piecing Attacker Actions Together</h3>
         <p>（這個之前在 &lt;#1313340987413893120&gt;   貼過了，搬過來論壇而已）<br><br>有趣的小文章，偏鑑識，檔案結構的部分就不羅列出來，有興趣可以自己讀該段落<br>https://insinuator.net/2025/01/jigsaw...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">讀書筆記</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/538594254973304853/a_6fd03d22617683f4defbf7781b783be5.png" alt="nini38514's avatar" class="author-avatar">
+            <span class="author-name">nini38514</span>
+        </div>
         <h3>Do you know this common Go vulnerability?</h3>
         <p>（這個之前在 &lt;#1313340987413893120&gt;   貼過了，搬過來論壇而已）<br>https://www.youtube.com/watch?v=wVknDjTgQoo<br>這篇分享一個 Go 裡面常見的漏洞 pattern，完整的作者...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">讀書筆記</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/538594254973304853/a_6fd03d22617683f4defbf7781b783be5.png" alt="nini38514's avatar" class="author-avatar">
+            <span class="author-name">nini38514</span>
+        </div>
         <h3>Google Dorking 小怪招</h3>
         <p>（這個之前在 &lt;#1313340987413893120&gt;   貼過了，搬過來論壇而已）<br>https://youtu.be/vFk0XtHfuSg?si=Sj1R-jUA5pb-q74C&amp;t=1261<br><br>分享一個 Google Dorkin...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">讀書筆記</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
-    <div class="post">
+    <div class="post-card">
+        <div class="post-header">
+            <img src="https://cdn.discordapp.com/avatars/538594254973304853/a_6fd03d22617683f4defbf7781b783be5.png" alt="nini38514's avatar" class="author-avatar">
+            <span class="author-name">nini38514</span>
+        </div>
         <h3>How malware authors play with the LNK file format - Quarkslab&#x27;s blog</h3>
         <p>（這個之前在  &lt;#1313340987413893120&gt;   貼過了，搬過來論壇而已）<br><br>- https://blog.quarkslab.com/how-malware-authors-play-with-the-lnk-file-f...</p>
-    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer">點此加入社群參與討論 &raquo;</a></div>
+        <div class="tags-container"><span class="tag-item">讀書筆記</span></div>
+    <a href="https://discord.gg/yyJUZNVHzb" target="_blank" rel="noopener noreferrer" class="join-link">點此加入社群參與討論 &raquo;</a></div>
 
     </main>
     <footer>
