@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>社群討論精華</title>
+    <title><!-- PAGE_TITLE --></title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-css-theme@1.2.1/css/simple.min.css">
     <style>
         body { container: main / inline-size; }
@@ -24,13 +24,27 @@
         .post a {
             font-weight: bold;
         }
+        nav {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        nav a {
+            margin-right: 1rem;
+            text-decoration: none;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <header>
-        <h1>社群討論精華</h1>
+        <h1><!-- PAGE_TITLE --></h1>
         <p>這裡是我們社群最新討論的摘要，完整內容都在 Discord！</p>
     </header>
+    <nav>
+        <a href="index.html">最新討論</a>
+        <a href="ctf_reviews.html">CTF 評價</a>
+    </nav>
     <main>
         <!-- DISCORD_MESSAGES -->
     </main>
