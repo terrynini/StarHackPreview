@@ -385,7 +385,7 @@ if len(sorted_threads) > MAX_POSTS_TO_FETCH:
 elif not html_content_main:
     html_content_main = "<p>目前還沒有任何討論，快來發表第一篇吧！</p>"
 
-write_html_file('index.html', html_content_main, "社群討論精華", server_name, server_icon_url, formatted_time)
+write_html_file('index.html', html_content_main, "StarHack Academy 社群最新動態", server_name, server_icon_url, formatted_time)
 print("index.html 已成功根據論壇內容產生！")
 
 # --- 生成 CTF 評價頁面 (ctf_reviews.html) ---
