@@ -5,6 +5,7 @@ import time
 import math
 import datetime
 import pytz
+import re
 
 # 從 GitHub Secrets 讀取環境變數
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -26,6 +27,9 @@ headers = {
     "Authorization": f"Bot {TOKEN}"
 }
 
+# 快取頻道名稱，避免重複請求
+channel_name_cache = {}
+
 def get_avatar_url(user_id, avatar_hash):
     """根據用戶 ID 和頭貼 hash 生成頭貼 URL"""
     if avatar_hash:
@@ -40,6 +44,58 @@ def get_guild_icon_url(guild_id, icon_hash):
     if icon_hash:
         return f"https://cdn.discordapp.com/icons/{guild_id}/{icon_hash}.png"
     return "" # 如果沒有 icon，返回空字串
+
+def render_discord_emojis(text):
+    """將 Discord 自定義表情符號轉換為圖片標籤。"""
+    # 匹配 <a:name:id> (動態) 或 <:name:id> (靜態) 格式的表情符號
+    emoji_pattern = re.compile(r"<(a?):(\w+):(\d+)>", re.IGNORECASE)
+
+    def replace_emoji(match):
+        animated = match.group(1) == 'a'
+        emoji_name = match.group(2)
+        emoji_id = match.group(3)
+        ext = "gif" if animated else "png"
+        # 確保 alt 屬性中的 emoji_name 被正確轉義
+        return f'<img src="https://cdn.discordapp.com/emojis/{emoji_id}.{ext}" alt="{html.escape(emoji_name)}" class="discord-emoji">'
+
+    return emoji_pattern.sub(replace_emoji, text)
+
+def resolve_channel_mentions(text, guild_id):
+    """將 Discord 頻道提及 (<#CHANNEL_ID>) 轉換為頻道名稱連結。"""
+    if not text or not guild_id:
+        return text
+
+    channel_mention_pattern = re.compile(r"<#(\d+)>", re.IGNORECASE)
+
+    def replace_channel_mention(match):
+        channel_id = match.group(1)
+        print(f"偵錯：正在嘗試解析頻道提及 ID: {channel_id}")
+        if channel_id in channel_name_cache:
+            channel_name = channel_name_cache[channel_id]
+            print(f"偵錯：頻道 ID {channel_id} 從快取中獲取名稱: {channel_name}")
+        else:
+            channel_url = f"https://discord.com/api/v9/channels/{channel_id}"
+            try:
+                response = requests.get(channel_url, headers=headers, timeout=5)
+                response.raise_for_status()
+                channel_data = response.json()
+                channel_name = channel_data.get('name', f'unknown-channel-{channel_id}')
+                channel_name_cache[channel_id] = channel_name
+                print(f"偵錯：成功獲取頻道 ID {channel_id} 的名稱: {channel_name}")
+                time.sleep(0.1) # Be polite to the API
+            except requests.exceptions.RequestException as e:
+                print(f"錯誤：獲取頻道 ID {channel_id} 的資訊失敗: {e}")
+                if hasattr(e, 'response') and e.response is not None:
+                    print(f"錯誤詳情：狀態碼 {e.response.status_code}, 回應: {e.response.text}")
+                channel_name = f'unknown-channel-{channel_id}' # 使用預設名稱
+                channel_name_cache[channel_id] = channel_name # Cache error to avoid repeated requests
+            
+        # 構建 Discord deep link 到頻道
+        # 格式: https://discord.com/channels/GUILD_ID/CHANNEL_ID
+        discord_link = f"https://discord.com/channels/{guild_id}/{channel_id}"
+        return f'<a href="{discord_link}" target="_blank" rel="noopener noreferrer" class="discord-channel-link">#{html.escape(channel_name)}</a>'
+
+    return channel_mention_pattern.sub(replace_channel_mention, text)
 
 def fetch_thread_content_and_replies(thread_id, guild_id, fetch_replies=False, reply_limit=5):
     """獲取指定論壇貼文的初始貼文內容、作者資訊、伺服器暱稱、反應及回覆。"""
@@ -160,15 +216,18 @@ def calculate_star_rating(thread_id, guild_id):
 
 def render_stars(average_rating, total_unique_voters):
     """將平均分數轉換為 HTML 星級圖案，並顯示具體分數和總投票數。"""
-    filled_star_html = '<span class="filled-star">★</span>'
-    empty_star_html = '<span class="empty-star">☆</span>'
+    stars_html = ""
+    for i in range(1, 6):
+        if average_rating >= i:
+            stars_html += '<span class="star filled-star">★</span>'
+        elif average_rating > i - 1:
+            # 計算部分填滿的百分比
+            fill_percentage = (average_rating - (i - 1)) * 100
+            stars_html += f'<span class="star partial-star" style="--fill-percentage: {fill_percentage:.1f}%;">★</span>'
+        else:
+            stars_html += '<span class="star empty-star">☆</span>'
     
-    # 將平均分數四捨五入到最接近的整數，然後生成星星
-    num_filled = round(average_rating)
-    
-    stars_html = f"{filled_star_html * num_filled}{empty_star_html * (5 - num_filled)}"
-    
-    return f"<span class=\"star-rating\">賽事社群評分: {stars_html} {average_rating:.1f}/5 ({total_unique_voters} 人評分)</span>"
+    return f"<span class=\"star-rating-wrapper\">賽事社群評分: {stars_html} {average_rating:.1f}/5 ({total_unique_voters} 人評分)</span>"
 
 def get_forum_channel_details(channel_id):
     """獲取論壇頻道詳細資訊，包括標籤。"""
@@ -340,10 +399,15 @@ for thread in latest_threads:
         continue
 
     summary_limit = 120
-    if content:
-        summary = html.escape(content[:summary_limit]).replace('\n', '<br>') + '...'
-    else:
-        summary = "<i>(此貼文無內文)</i>"
+    # 先對原始 content 進行截斷
+    truncated_content = content
+    if len(content) > summary_limit:
+        truncated_content = content[:summary_limit] + '...'
+
+    # 然後再對這個已經截斷的文本進行 HTML 轉換
+    processed_content = render_discord_emojis(truncated_content)
+    processed_content = resolve_channel_mentions(processed_content, forum_guild_id)
+    summary = processed_content.replace('\n', '<br>')
     
     author_id = author_data.get('id')
     avatar_hash = author_data.get('avatar')
@@ -385,7 +449,7 @@ if len(sorted_threads) > MAX_POSTS_TO_FETCH:
 elif not html_content_main:
     html_content_main = "<p>目前還沒有任何討論，快來發表第一篇吧！</p>"
 
-write_html_file('index.html', html_content_main, "StarHack Academy 社群最新動態", server_name, server_icon_url, formatted_time)
+write_html_file('index.html', html_content_main, "社群討論精華", server_name, server_icon_url, formatted_time)
 print("index.html 已成功根據論壇內容產生！")
 
 # --- 生成 CTF 評價頁面 (ctf_reviews.html) ---
@@ -399,10 +463,15 @@ if ctf_tag_id:
             continue
 
         summary_limit = 120
-        if content:
-            summary = html.escape(content[:summary_limit]).replace('\n', '<br>') + '...'
-        else:
-            summary = "<i>(此貼文無內文)</i>"
+        # 先對原始 content 進行截斷
+        truncated_content = content
+        if len(content) > summary_limit:
+            truncated_content = content[:summary_limit] + '...'
+
+        # 然後再對這個已經截斷的文本進行 HTML 轉換
+        processed_content = render_discord_emojis(truncated_content)
+        processed_content = resolve_channel_mentions(processed_content, forum_guild_id)
+        summary = processed_content.replace('\n', '<br>')
         
         author_id = author_data.get('id')
         avatar_hash = author_data.get('avatar')
@@ -431,7 +500,10 @@ if ctf_tag_id:
         if replies:
             replies_html = '<div class="replies-container"><h4>最新回覆：</h4>'
             for reply in replies:
-                reply_content = html.escape(reply.get('content', '<i>(無內容)</i>')).replace('\n', '<br>')
+                # 先處理 Discord 表情符號，再處理頻道提及，最後進行 HTML 轉義
+                processed_reply_content = render_discord_emojis(reply.get('content', '<i>(無內容)</i>'))
+                processed_reply_content = resolve_channel_mentions(processed_reply_content, forum_guild_id)
+                reply_content = processed_reply_content.replace('\n', '<br>')
                 replies_html += f"""
                 <div class="reply-item">
                     <img src="{reply.get('avatar_url')}" alt="{reply.get('display_name')}'s avatar" class="reply-avatar">

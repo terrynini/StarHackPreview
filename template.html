@@ -216,8 +216,8 @@
             padding: 0.3em 0.6em;
             border-radius: 4px;
             font-size: 0.85em;
-            /* margin-right: 0.5em; */ /* 移除，使用 gap */
-            /* margin-bottom: 0.5em; */ /* 移除，使用 gap */
+            margin-right: 0.5em;
+            margin-bottom: 0.5em;
         }
 
         .join-link {
@@ -235,18 +235,36 @@
             background-color: #218838; /* Darker green */
         }
 
-        .star-rating {
+        /* 新的星級評分容器 */
+        .star-rating-wrapper {
             font-size: 1.5em; /* Make stars larger */
             margin-bottom: 1rem; /* Space below stars */
             display: block; /* Ensure it takes full width */
+            white-space: nowrap; /* Prevent wrapping of stars */
         }
 
-        .star-rating .filled-star {
-            color: var(--star-color); /* Yellow for filled stars */
+        .star {
+            display: inline-block;
+            position: relative;
+            color: var(--empty-star-color); /* Default color for empty part */
         }
 
-        .star-rating .empty-star {
-            color: var(--empty-star-color); /* Gray for empty stars */
+        .filled-star {
+            color: var(--star-color); /* Yellow for full stars */
+        }
+
+        .partial-star {
+            color: var(--empty-star-color); /* Base color for the empty part of the partial star */
+        }
+
+        .partial-star::before {
+            content: '★'; /* Filled star character */
+            position: absolute;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+            color: var(--star-color); /* Yellow for the filled part */
+            width: var(--fill-percentage); /* Controlled by Python generated style */
         }
 
         .replies-container {
@@ -321,6 +339,27 @@
             background-color: #0056b3;
         }
 
+        .discord-emoji {
+            width: 1.2em; /* Adjust size as needed */
+            height: 1.2em;
+            vertical-align: middle; /* Align with text */
+            margin: 0 1px; /* Small spacing */
+        }
+
+        .discord-channel-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: bold;
+            background-color: rgba(0, 123, 255, 0.1); /* Light blue background */
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            transition: background-color 0.2s ease;
+        }
+
+        .discord-channel-link:hover {
+            background-color: rgba(0, 123, 255, 0.2);
+        }
+
         footer {
             text-align: center;
             padding: 2rem 1rem;
@@ -349,7 +388,7 @@
     </main>
     <footer>
         <p>此頁面由 GitHub Action 自動更新。</p>
-        <span class="update-time">最後更新時間: <!-- LAST_UPDATED_TIME -->（每小時自動更新一次）</span>
+        <span class="update-time">最後更新時間: <!-- LAST_UPDATED_TIME --></span>
     </footer>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
