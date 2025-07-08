@@ -18,6 +18,9 @@ MAX_POSTS_TO_FETCH = 15
 # 設定 CTF 評價標籤的名稱
 CTF_TAG_NAME = "CTF評價"
 
+# 新增：設定 no-index 標籤的名稱
+NO_INDEX_TAG_NAME = "no-index"
+
 # 檢查 Secrets 是否成功載入
 if not TOKEN or not CHANNEL_ID:
     print("錯誤：請在 GitHub Repository 的 Settings -> Secrets 中設定 DISCORD_TOKEN 和 DISCORD_CHANNEL_ID")
@@ -26,6 +29,9 @@ if not TOKEN or not CHANNEL_ID:
 headers = {
     "Authorization": f"Bot {TOKEN}"
 }
+
+# 通用匿名頭貼 URL
+ANONYMOUS_AVATAR_URL = "https://cdn.discordapp.com/embed/avatars/1.png" # 可以替換為您自己的通用頭貼
 
 # 快取頻道名稱，避免重複請求
 channel_name_cache = {}
@@ -97,7 +103,7 @@ def resolve_channel_mentions(text, guild_id):
 
     return channel_mention_pattern.sub(replace_channel_mention, text)
 
-def fetch_thread_content_and_replies(thread_id, guild_id, fetch_replies=False, reply_limit=5):
+def fetch_thread_content_and_replies(thread_id, guild_id, fetch_replies=False, reply_limit=5, force_anonymize=False):
     """獲取指定論壇貼文的初始貼文內容、作者資訊、伺服器暱稱、反應及回覆。"""
     # 論壇貼文的 ID 就是其初始貼文的訊息 ID
     message_url = f"https://discord.com/api/v9/channels/{thread_id}/messages/{thread_id}"
@@ -110,9 +116,15 @@ def fetch_thread_content_and_replies(thread_id, guild_id, fetch_replies=False, r
         author = message.get('author', {})
         # reactions = message.get('reactions', []) # 不再直接回傳 reactions，由 calculate_star_rating 處理
 
-        # --- 獲取伺服器暱稱 ---
+        # --- 處理作者匿名化 ---
         author_name_to_display = author.get('username', '未知作者') 
-        if 'id' in author and guild_id: 
+        author_id = author.get('id') # 獲取作者 ID
+        author_avatar_url = get_avatar_url(author_id, author.get('avatar')) # 預設頭貼
+
+        if force_anonymize: # 如果強制匿名化
+            author_name_to_display = "匿名用戶"
+            author_avatar_url = ANONYMOUS_AVATAR_URL
+        elif 'id' in author and guild_id: 
             member_url = f"https://discord.com/api/v9/guilds/{guild_id}/members/{author['id']}"
             try:
                 member_response = requests.get(member_url, headers=headers, timeout=5)
@@ -149,7 +161,13 @@ def fetch_thread_content_and_replies(thread_id, guild_id, fetch_replies=False, r
                     reply_author = reply.get('author', {})
                     reply_author_id = reply_author.get('id')
                     reply_author_name_to_display = reply_author.get('username', '未知作者')
-                    if reply_author_id and guild_id:
+                    reply_avatar_url = get_avatar_url(reply_author_id, reply_author.get('avatar'))
+
+                    # 檢查是否為敏感用戶或強制匿名化
+                    if force_anonymize: # 如果強制匿名化
+                        reply_author_name_to_display = "匿名用戶"
+                        reply_avatar_url = ANONYMOUS_AVATAR_URL
+                    elif reply_author_id and guild_id:
                         member_url = f"https://discord.com/api/v9/guilds/{guild_id}/members/{reply_author_id}"
                         try:
                             member_response = requests.get(member_url, headers=headers, timeout=5)
@@ -165,15 +183,15 @@ def fetch_thread_content_and_replies(thread_id, guild_id, fetch_replies=False, r
                             pass # 忽略獲取回覆作者資訊的錯誤
                         time.sleep(0.1) # 每次獲取成員資訊後稍微延遲
                     reply['display_name'] = reply_author_name_to_display
-                    reply['avatar_url'] = get_avatar_url(reply_author.get('id'), reply_author.get('avatar'))
+                    reply['avatar_url'] = reply_avatar_url
 
             except requests.exceptions.RequestException as e:
                 print(f"警告：獲取貼文 {thread_id} 的回覆時發生錯誤: {e}")
 
-        return content, author, author_name_to_display, replies
+        return content, author, author_name_to_display, author_avatar_url, replies
     except requests.exceptions.RequestException as e:
         print(f"獲取初始貼文 {thread_id} 的訊息時出錯: {e}")
-    return None, None, None, [] # Return None for all if failed
+    return None, None, None, None, [] # Return None for all if failed
 
 def calculate_star_rating(thread_id, guild_id):
     """根據每個用戶的最高星級反應計算平均星級評分，並返回總投票數。"""
@@ -343,6 +361,7 @@ def write_html_file(filename, content, page_title, server_name="", server_icon_u
 # 1. 獲取論壇頻道詳細資訊以找到 CTF 標籤 ID 和所有標籤映射
 forum_details = get_forum_channel_details(CHANNEL_ID)
 ctf_tag_id = None
+no_index_tag_id = None # 新增：no-index 標籤 ID
 tag_map = {}
 forum_guild_id = None
 server_name = ""
@@ -361,9 +380,14 @@ if forum_details:
             tag_map[tag['id']] = tag['name']
             if tag['name'] == CTF_TAG_NAME:
                 ctf_tag_id = tag['id']
+            if tag['name'] == NO_INDEX_TAG_NAME: # 新增：獲取 no-index 標籤 ID
+                no_index_tag_id = tag['id']
 
 if ctf_tag_id is None:
     print(f"警告：找不到名為 '{CTF_TAG_NAME}' 的標籤。CTF 評價頁面將不會生成。")
+
+if no_index_tag_id is None:
+    print(f"警告：找不到名為 '{NO_INDEX_TAG_NAME}' 的標籤。相關匿名化功能將不會生效。")
 
 # 2. 獲取所有活躍和封存的貼文
 print("正在獲取所有活躍貼文...")
@@ -394,7 +418,12 @@ formatted_time = current_taiwan_time.strftime('%Y-%m-%d %H:%M %Z%z') # 格式化
 # --- 生成主頁面 (index.html) ---
 html_content_main = ""
 for thread in latest_threads:
-    content, author_data, author_display_name, _ = fetch_thread_content_and_replies(thread['id'], forum_guild_id)
+    # 判斷是否需要匿名化
+    anonymize_author = False
+    if no_index_tag_id and 'applied_tags' in thread and no_index_tag_id in thread['applied_tags']:
+        anonymize_author = True
+
+    content, author_data, author_display_name, author_avatar_url, replies = fetch_thread_content_and_replies(thread['id'], forum_guild_id, force_anonymize=anonymize_author)
     if content is None and author_data is None: 
         continue
 
@@ -409,9 +438,9 @@ for thread in latest_threads:
     processed_content = resolve_channel_mentions(processed_content, forum_guild_id)
     summary = processed_content.replace('\n', '<br>')
     
-    author_id = author_data.get('id')
-    avatar_hash = author_data.get('avatar')
-    author_avatar_url = get_avatar_url(author_id, avatar_hash)
+    # author_id = author_data.get('id') # 不再需要，因為 fetch_thread_content_and_replies 已經處理了
+    # avatar_hash = author_data.get('avatar') # 不再需要
+    # author_avatar_url = get_avatar_url(author_id, avatar_hash) # 不再需要
 
     thread_tags_html = ""
     if 'applied_tags' in thread and tag_map:
@@ -456,9 +485,11 @@ print("index.html 已成功根據論壇內容產生！")
 if ctf_tag_id:
     html_content_ctf = ""
     for i, thread in enumerate(ctf_threads):
-        # 對於 CTF 評價頁面，獲取所有數據，包括 reactions
-        fetch_replies = (i < 5) # 只對前 5 篇獲取回覆
-        content, author_data, author_display_name, replies = fetch_thread_content_and_replies(thread['id'], forum_guild_id, fetch_replies=fetch_replies)
+        # CTF 評價頁面預設匿名化
+        anonymize_author = True 
+        # 對於前 5 篇 CTF 貼文，獲取回覆
+        fetch_replies = (i < 5) 
+        content, author_data, author_display_name, author_avatar_url, replies = fetch_thread_content_and_replies(thread['id'], forum_guild_id, fetch_replies=fetch_replies, force_anonymize=anonymize_author)
         if content is None and author_data is None: 
             continue
 
@@ -473,9 +504,9 @@ if ctf_tag_id:
         processed_content = resolve_channel_mentions(processed_content, forum_guild_id)
         summary = processed_content.replace('\n', '<br>')
         
-        author_id = author_data.get('id')
-        avatar_hash = author_data.get('avatar')
-        author_avatar_url = get_avatar_url(author_id, avatar_hash)
+        # author_id = author_data.get('id') # 不再需要
+        # avatar_hash = author_data.get('avatar') # 不再需要
+        # author_avatar_url = get_avatar_url(author_id, avatar_hash) # 不再需要
 
         thread_tags_html = ""
         if 'applied_tags' in thread and tag_map:
