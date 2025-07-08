@@ -38,4 +38,3 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
           commit_message: 'chore: 自動更新 Discord 內容'
-          file_pattern: '{index.html,ctf_reviews.html}'
