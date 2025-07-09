@@ -103,6 +103,14 @@ def resolve_channel_mentions(text, guild_id):
 
     return channel_mention_pattern.sub(replace_channel_mention, text)
 
+def mask_user_mentions(text):
+    """將 Discord 使用者提及 (<@USER_ID>) 替換為通用佔位符。"""
+    if not text:
+        return text
+    # 匹配 <@USER_ID> 或 <@!USER_ID>
+    user_mention_pattern = re.compile(r"<@!?(\d+)>")
+    return user_mention_pattern.sub("[@提及用戶]", text)
+
 def fetch_thread_content_and_replies(thread_id, guild_id, fetch_replies=False, reply_limit=5, force_anonymize=False):
     """獲取指定論壇貼文的初始貼文內容、作者資訊、伺服器暱稱、反應及回覆。"""
     # 論壇貼文的 ID 就是其初始貼文的訊息 ID
@@ -124,6 +132,7 @@ def fetch_thread_content_and_replies(thread_id, guild_id, fetch_replies=False, r
         if force_anonymize: # 如果強制匿名化
             author_name_to_display = "匿名用戶"
             author_avatar_url = ANONYMOUS_AVATAR_URL
+            content = mask_user_mentions(content) # 遮蔽主要內容中的使用者提及
         elif 'id' in author and guild_id: 
             member_url = f"https://discord.com/api/v9/guilds/{guild_id}/members/{author['id']}"
             try:
@@ -167,6 +176,8 @@ def fetch_thread_content_and_replies(thread_id, guild_id, fetch_replies=False, r
                     if force_anonymize: # 如果強制匿名化
                         reply_author_name_to_display = "匿名用戶"
                         reply_avatar_url = ANONYMOUS_AVATAR_URL
+                        if 'content' in reply:
+                            reply['content'] = mask_user_mentions(reply['content'])
                     elif reply_author_id and guild_id:
                         member_url = f"https://discord.com/api/v9/guilds/{guild_id}/members/{reply_author_id}"
                         try:
